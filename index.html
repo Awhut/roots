@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Scroll-Driven Root Network</title>
+  <style>
+    body {
+      margin: 0;
+      height: 200vh; /* Extra height for scrolling */
+      background: transparent;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+    }
+    #root-network {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: transparent;
+    }
+  </style>
+</head>
+<body>
+  <div id="roots-section" style="margin-top: 50vh; height: 100vh; width: 100%; position: relative;">
+    <svg id="root-network" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" preserveAspectRatio="xMinYMin meet">
+    </svg>
+  </div>
+
+  <script>
+    const svg = document.getElementById('root-network');
+    const rootsSection = document.getElementById('roots-section');
+    let rootIndex = 0;
+    const roots = [];
+    let animationTriggered = false;
+
+    function createRootPath(xStart, yStart, length, angle, depth, parentProgress) {
+      if (depth === 0) return;
+
+      const controlPoint1X = xStart + (length / 3) * Math.cos(angle - Math.PI / 16) + Math.random() * 5 - 2.5;
+      const controlPoint1Y = yStart + (length / 3) * Math.sin(angle - Math.PI / 16) + Math.random() * 5 - 2.5;
+
+      const controlPoint2X = xStart + (2 * length / 3) * Math.cos(angle + Math.PI / 16) + Math.random() * 5 - 2.5;
+      const controlPoint2Y = yStart + (2 * length / 3) * Math.sin(angle + Math.PI / 16) + Math.random() * 5 - 2.5;
+
+      const xEnd = xStart + length * Math.cos(angle);
+      const yEnd = yStart + length * Math.sin(angle);
+
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute(
+        'd',
+        `M${xStart},${yStart} C${controlPoint1X},${controlPoint1Y} ${controlPoint2X},${controlPoint2Y} ${xEnd},${yEnd}`
+      );
+
+      // Set stroke color and width
+      path.setAttribute('stroke', '#6b4a2c');
+      path.setAttribute('stroke-width', 2); // Fixed width of 2px for all roots
+      path.setAttribute('fill', 'none');
+      path.setAttribute('stroke-dasharray', length);
+      path.setAttribute('stroke-dashoffset', length);
+      path.style.visibility = 'hidden'; // Hide path initially to avoid artifacts
+      path.style.display = 'none'; // Prevent rendering altogether until needed
+      path.style.strokeDashoffset = length; // Ensure paths are hidden initially
+      svg.appendChild(path);
+
+      const growthThreshold = parentProgress + 0.1; // Child starts growing after parent is fully drawn
+      roots.push({ path, length, growthThreshold });
+
+      // Determine the number of child roots
+      let childCount;
+      if (depth === 6) { // Make the first child set have 5 children
+        childCount = 5;
+      } else {
+        childCount = 2 + Math.floor(Math.random() * 2); // 2 to 3 child roots for other depths
+      }
+
+      for (let i = 0; i < childCount; i++) {
+        const lengthScale = Math.max(1.0, depth / 6); // Substantially increase minimum scale
+        const newLength = length * (Math.random() * 0.8 + 0.4) * lengthScale; // Variable length scaling
+        const minAngleVariance = depth === 6 ? Math.PI / 6 : Math.PI / 8; // Increase minimum angle variance for first child set
+        const angleVariance = depth === 6 ? Math.PI / 4 : Math.PI / 8; // Increase angle for first child set
+        const wiggle = (Math.random() - 0.5) * Math.PI / 16; // Add slight wiggle to angles
+        const newAngle = angle + (Math.random() * (angleVariance - minAngleVariance) + minAngleVariance) * (Math.random() < 0.5 ? -1 : 1) + wiggle;
+
+        createRootPath(xEnd, yEnd, newLength, newAngle, depth - 1, growthThreshold); // Recursively create child roots
+      }
+    }
+
+    createRootPath(200, 0, 70, Math.PI / 2, 6, 0); // Start at (200, 0), grow downward
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting && !animationTriggered) {
+          animationTriggered = true;
+          window.addEventListener('scroll', () => {
+            const scrollTop = window.scrollY;
+            const progress = Math.min(scrollTop / (document.body.scrollHeight - window.innerHeight), 1);
+
+            roots.forEach(({ path, length, growthThreshold }) => {
+              const relativeProgress = Math.max(0, Math.min((progress - growthThreshold) / 0.1, 1)); // Map to 0-1 range
+              if (relativeProgress > 0) {
+                path.style.visibility = 'visible'; // Show path
+                path.style.display = 'block'; // Enable rendering
+              }
+              path.style.strokeDashoffset = length * (1 - relativeProgress); // Update stroke-dashoffset
+            });
+          });
+        }
+      });
+    });
+
+    observer.observe(rootsSection);
+  </script>
+</body>
+</html>
